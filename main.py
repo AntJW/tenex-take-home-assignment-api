@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from clients.embeddings_client import EmbeddingsAPIClient
 from clients.vector_db_client import VectorDBClient
 from clients.llm_client import LLMClient
-from utils import parse_folder_id, chunk_text, fetch_drive_files
+from utils import parse_drive_url, chunk_text, fetch_drive_files, fetch_drive_file
 
 load_dotenv()
 
@@ -25,21 +25,27 @@ llm = LLMClient()
 @app.post("/api/drive/load")
 def api_drive_load():
     data = request.get_json() or {}
-    drive_url = data.get("driveUrl")
-    access_token = data.get("accessToken")
-    google_id = data.get("googleId")
+    drive_url = data.get("driveUrl") or data.get("drive_url")
+    access_token = data.get("accessToken") or data.get("access_token")
+    google_id = data.get("googleId") or data.get("google_id")
 
     if not drive_url or not access_token:
         return jsonify({"error": "driveUrl and accessToken are required"}), 400
     if not google_id:
         return jsonify({"error": "googleId is required"}), 400
 
-    folder_id = parse_folder_id(drive_url)
-    if not folder_id:
-        return jsonify({"error": "Invalid Google Drive folder URL"}), 400
+    parsed = parse_drive_url(drive_url)
+    if not parsed:
+        logging.warning("Invalid drive URL: %r",
+                        drive_url[:200] if drive_url else None)
+        return jsonify({"error": "Invalid Google Drive folder or file URL"}), 400
 
+    url_type, resource_id = parsed
     try:
-        files = fetch_drive_files(folder_id, access_token)
+        if url_type == "folder":
+            files = fetch_drive_files(resource_id, access_token)
+        else:
+            files = fetch_drive_file(resource_id, access_token)
 
         vectordb.ensure_collection()
         vectordb.delete_by_drive_url(google_id, drive_url)
@@ -82,7 +88,7 @@ def api_drive_load():
 
         return jsonify(
             {
-                "folderId": folder_id,
+                "folderId": resource_id,
                 "files": [{"name": f["name"], "mimeType": f["mimeType"]} for f in files],
                 "chunksIndexed": len(all_chunks),
             }
@@ -91,7 +97,7 @@ def api_drive_load():
         logging.exception("Drive load error: %s", e)
         return (
             jsonify(
-                {"error": "Failed to load Google Drive folder. Check your permissions."}
+                {"error": "Failed to load Google Drive folder or file. Check your permissions."}
             ),
             500,
         )

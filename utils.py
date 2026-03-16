@@ -20,6 +20,32 @@ def parse_folder_id(url: str) -> str | None:
     return match.group(1) if match else None
 
 
+def parse_drive_url(url: str) -> tuple[str, str] | None:
+    """
+    Parse a Drive URL into type and ID.
+
+    Accepts:
+    - Folder URLs: https://drive.google.com/drive/folders/FOLDER_ID
+    - Drive file URLs: https://drive.google.com/file/d/FILE_ID/view
+    - Docs/Sheets/Slides URLs: https://docs.google.com/document/d/FILE_ID/edit...
+
+    Returns ("folder", id) or ("file", id), or None if the URL is not recognized.
+    """
+    if not url or not isinstance(url, str):
+        return None
+    url = url.strip()
+    # Drive IDs are alphanumeric with - _ and sometimes .
+    id_pattern = r"[a-zA-Z0-9_.-]+"
+    folder_match = re.search(r"/folders/(" + id_pattern + r")", url)
+    if folder_match:
+        return ("folder", folder_match.group(1))
+    # drive.google.com/file/d/ID or docs.google.com/document|spreadsheets|presentation/d/ID
+    file_match = re.search(r"/(?:file|document|spreadsheets|presentation)/d/(" + id_pattern + r")", url)
+    if file_match:
+        return ("file", file_match.group(1))
+    return None
+
+
 def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 200) -> list[str]:
     """
     Split text into overlapping chunks of a maximum size.
@@ -104,3 +130,56 @@ def fetch_drive_files(folder_id: str, access_token: str) -> list[dict]:
             logging.exception("Skipping %s: %s", name, e)
 
     return results
+
+
+def fetch_drive_file(file_id: str, access_token: str) -> list[dict]:
+    """
+    Fetch metadata and text content of a single Google Drive file by ID.
+
+    Use case: When the user pastes a file URL (not a folder), we load only that file.
+    Returns the same shape as fetch_drive_files: a list of one dict with id, name,
+    content, mimeType. Unsupported mime types are skipped (empty list).
+    """
+    creds = Credentials(token=access_token)
+    drive = build("drive", "v3", credentials=creds)
+
+    try:
+        meta = drive.files().get(fileId=file_id, fields="id,name,mimeType").execute()
+    except Exception as e:
+        logging.exception("Failed to get file %s: %s", file_id, e)
+        return []
+
+    name = meta.get("name")
+    mime_type = meta.get("mimeType")
+    if not name or not mime_type:
+        return []
+
+    google_export_map = {
+        "application/vnd.google-apps.document": "text/plain",
+        "application/vnd.google-apps.spreadsheet": "text/csv",
+        "application/vnd.google-apps.presentation": "text/plain",
+    }
+
+    try:
+        export_mime = google_export_map.get(mime_type)
+        if export_mime:
+            content = (
+                drive.files()
+                .export(fileId=file_id, mimeType=export_mime)
+                .execute()
+            )
+            if isinstance(content, bytes):
+                content = content.decode("utf-8", errors="replace")
+            return [{"id": file_id, "name": name, "content": content, "mimeType": mime_type}]
+        if mime_type.startswith("text/") or mime_type in (
+            "application/json",
+            "application/pdf",
+        ):
+            content = drive.files().get_media(fileId=file_id).execute()
+            if isinstance(content, bytes):
+                content = content.decode("utf-8", errors="replace")
+            return [{"id": file_id, "name": name, "content": content, "mimeType": mime_type}]
+    except Exception as e:
+        logging.exception("Skipping %s: %s", name, e)
+
+    return []
