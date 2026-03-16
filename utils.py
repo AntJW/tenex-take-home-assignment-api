@@ -90,7 +90,7 @@ def fetch_drive_files(folder_id: str, access_token: str) -> list[dict]:
                 if isinstance(content, bytes):
                     content = content.decode("utf-8", errors="replace")
                 results.append(
-                    {"name": name, "content": content, "mimeType": mime_type})
+                    {"id": file_id, "name": name, "content": content, "mimeType": mime_type})
             elif mime_type.startswith("text/") or mime_type in (
                 "application/json",
                 "application/pdf",
@@ -99,7 +99,7 @@ def fetch_drive_files(folder_id: str, access_token: str) -> list[dict]:
                 if isinstance(content, bytes):
                     content = content.decode("utf-8", errors="replace")
                 results.append(
-                    {"name": name, "content": content, "mimeType": mime_type})
+                    {"id": file_id, "name": name, "content": content, "mimeType": mime_type})
         except Exception as e:
             logging.exception("Skipping %s: %s", name, e)
 

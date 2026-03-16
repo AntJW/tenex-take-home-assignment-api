@@ -89,7 +89,7 @@ class VectorDBClient:
 
     def delete_by_drive_url(self, google_id: str, drive_url: str) -> None:
         """Delete points for this user and Drive folder URL."""
-        self._client.delete_points(
+        self._client.delete(
             collection_name=self._collection_name,
             points_selector=models.FilterSelector(
                 filter=models.Filter(

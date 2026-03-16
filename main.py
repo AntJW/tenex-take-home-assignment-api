@@ -14,7 +14,7 @@ from utils import parse_folder_id, chunk_text, fetch_drive_files
 load_dotenv()
 
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50MB
+
 CORS(app)
 
 embeddings = EmbeddingsAPIClient()
@@ -47,7 +47,11 @@ def api_drive_load():
         all_chunks: list[dict] = []
         for file in files:
             for text in chunk_text(file["content"]):
-                all_chunks.append({"text": text, "fileName": file["name"]})
+                all_chunks.append({
+                    "text": text,
+                    "fileName": file["name"],
+                    "fileId": file.get("id"),
+                })
 
         if all_chunks:
             vectors = embeddings.embed_batch([c["text"] for c in all_chunks])
@@ -58,6 +62,7 @@ def api_drive_load():
                     "payload": {
                         "googleId": google_id,
                         "fileName": all_chunks[i]["fileName"],
+                        "fileId": all_chunks[i].get("fileId"),
                         "driveUrl": drive_url,
                         "content": all_chunks[i]["text"],
                     },
@@ -106,8 +111,12 @@ def api_agent_chat():
         query_vector = embeddings.embed(message)
         hits = vectordb.search(query_vector, google_id, 10)
 
+        def file_link(payload: dict) -> str:
+            fid = payload.get("fileId")
+            return f"https://drive.google.com/file/d/{fid}/view" if fid else payload.get("driveUrl", "")
+
         context = "\n\n".join(
-            f"=== FILE: {h['payload']['fileName']} (score: {h['score']:.3f}) ===\n{h['payload']['content']}\n=== END ==="
+            f"=== FILE: {h['payload']['fileName']} (score: {h['score']:.3f}) ===\nLink: {file_link(h['payload'])}\n{h['payload']['content']}\n=== END ==="
             for h in hits
         ) or "(No relevant documents found.)"
 
@@ -119,8 +128,8 @@ Here are the most relevant document excerpts for the user's question:
 
 Rules:
 1. Base your answers ONLY on the provided document excerpts.
-2. After each claim or piece of information, include a citation: [Source: filename]
-3. If multiple files support a point, cite all relevant files.
+2. After each claim or piece of information, include a citation with the filename and the file link: [Source: filename](link)
+3. If multiple files support a point, cite all relevant files with their links.
 4. If information is not found in any of the excerpts, say so clearly.
 5. Be concise but thorough. Use paragraphs for readability."""
 

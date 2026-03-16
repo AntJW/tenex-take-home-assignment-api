@@ -22,3 +22,15 @@ pip install -r requirements
 ```cmd
 flask --app main run --debug
 ```
+
+
+Prequities
+Install docker
+
+
+docker build -t embeddings-api services/text-embeddings-api/ 
+docker run -p 11434:11434 embeddings-api
+
+
+docker build -t vector-db services/vector-db/
+docker run -p 6333:6333 vector-db
