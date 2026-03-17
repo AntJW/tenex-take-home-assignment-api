@@ -49,6 +49,9 @@ def api_drive_load():
 
         vectordb.ensure_collection()
         vectordb.delete_by_drive_url(google_id, drive_url)
+        for file in files:
+            if file.get("id"):
+                vectordb.delete_by_google_id_and_file_id(google_id, file["id"])
 
         all_chunks: list[dict] = []
         for file in files:
@@ -108,6 +111,7 @@ def api_agent_chat():
     data = request.get_json() or {}
     message = data.get("message")
     google_id = data.get("googleId")
+    drive_url = data.get("driveUrl")
     history = data.get("history") or []
 
     if not message or not google_id:
@@ -115,7 +119,8 @@ def api_agent_chat():
 
     try:
         query_vector = embeddings.embed(message)
-        hits = vectordb.search(query_vector, google_id, 10)
+        hits = vectordb.search(query_vector, google_id,
+                               10, drive_url=drive_url)
 
         def file_link(payload: dict) -> str:
             fid = payload.get("fileId")

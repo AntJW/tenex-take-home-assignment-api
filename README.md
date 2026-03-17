@@ -1,5 +1,10 @@
 
 
+Prequities
+Install docker
+
+Python3 installed
+
 Getting started
 
 1. Create python virtual environment (venv) at root of this repo
@@ -13,24 +18,26 @@ source venv/bin/activate
 
 2. Install python dependencies
 
-```cmd
+```cmd 
 pip install -r requirements 
 ```
 
 3. Run server
 
 ```cmd
-flask --app main run --debug
+python main.py
 ```
 
 
-Prequities
-Install docker
 
+Run text embeddings api
 
 docker build -t embeddings-api services/text-embeddings-api/ 
 docker run -p 11434:11434 embeddings-api
 
 
+Run vector db
+
 docker build -t vector-db services/vector-db/
 docker run -p 6333:6333 vector-db
+

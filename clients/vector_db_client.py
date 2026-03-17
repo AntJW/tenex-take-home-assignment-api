@@ -22,8 +22,10 @@ class Document(BaseModel):
 
 class VectorDBClient:
     def __init__(self, base_url: str | None = None, collection: str | None = None):
-        self._url = (base_url or os.getenv("VECTOR_DB_URL") or DEFAULT_VECTOR_DB_URL).rstrip("/")
-        self._collection_name = collection or os.getenv("VECTOR_DB_COLLECTION") or DEFAULT_COLLECTION
+        self._url = (base_url or os.getenv("VECTOR_DB_URL")
+                     or DEFAULT_VECTOR_DB_URL).rstrip("/")
+        self._collection_name = collection or os.getenv(
+            "VECTOR_DB_COLLECTION") or DEFAULT_COLLECTION
 
         # TODO: Uncomment this before deploying to production
         # self._api_key = os.getenv("VECTOR_DB_API_KEY")
@@ -56,7 +58,8 @@ class VectorDBClient:
         except Exception:
             self._client.create_collection(
                 collection_name=self._collection_name,
-                vectors_config=models.VectorParams(size=VECTOR_SIZE, distance=models.Distance.COSINE),
+                vectors_config=models.VectorParams(
+                    size=VECTOR_SIZE, distance=models.Distance.COSINE),
             )
 
     def upsert(self, points: list[dict[str, Any]]) -> None:
@@ -64,21 +67,29 @@ class VectorDBClient:
         self._client.upsert(
             collection_name=self._collection_name,
             points=[
-                models.PointStruct(id=p["id"], vector=p["vector"], payload=p["payload"])
+                models.PointStruct(
+                    id=p["id"], vector=p["vector"], payload=p["payload"])
                 for p in points
             ],
         )
 
     def search(
-        self, vector: list[float], google_id: str, limit: int = 10
+        self,
+        vector: list[float],
+        google_id: str,
+        limit: int = 10,
+        drive_url: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Search by vector filtered by googleId. Returns list of { id, score, payload }."""
+        """Search by vector filtered by googleId and optionally driveUrl. Returns list of { id, score, payload }."""
+        must = [models.FieldCondition(
+            key="googleId", match=models.MatchValue(value=google_id))]
+        if drive_url:
+            must.append(models.FieldCondition(key="driveUrl",
+                        match=models.MatchValue(value=drive_url)))
         results = self._client.query_points(
             collection_name=self._collection_name,
             query=vector,
-            query_filter=models.Filter(
-                must=[models.FieldCondition(key="googleId", match=models.MatchValue(value=google_id))]
-            ),
+            query_filter=models.Filter(must=must),
             limit=limit,
             with_payload=True,
         )
@@ -94,8 +105,26 @@ class VectorDBClient:
             points_selector=models.FilterSelector(
                 filter=models.Filter(
                     must=[
-                        models.FieldCondition(key="googleId", match=models.MatchValue(value=google_id)),
-                        models.FieldCondition(key="driveUrl", match=models.MatchValue(value=drive_url)),
+                        models.FieldCondition(
+                            key="googleId", match=models.MatchValue(value=google_id)),
+                        models.FieldCondition(
+                            key="driveUrl", match=models.MatchValue(value=drive_url)),
+                    ]
+                )
+            ),
+        )
+
+    def delete_by_google_id_and_file_id(self, google_id: str, file_id: str) -> None:
+        """Delete points for this user and file ID so the same file can be overwritten without duplicates."""
+        self._client.delete(
+            collection_name=self._collection_name,
+            points_selector=models.FilterSelector(
+                filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="googleId", match=models.MatchValue(value=google_id)),
+                        models.FieldCondition(
+                            key="fileId", match=models.MatchValue(value=file_id)),
                     ]
                 )
             ),
