@@ -33,7 +33,7 @@ class ChatService:
 
     CHAT_SYSTEM_RULES = """Rules:
 1. Base your answers ONLY on the provided document excerpts.
-2. Put all citations at the end of your message. After your answer, add a "Sources:" section listing each source used as: [filename](link). If multiple files were used, list each one.
+2. After each claim or piece of information, include a citation with the filename and the file link: [Source: filename](link)
 3. If information is not found in any of the excerpts, say so clearly.
 4. Be concise but thorough. Use paragraphs for readability."""
 
@@ -61,7 +61,8 @@ class ChatService:
         try:
             query_vector = self._embeddings.embed(message)
         except Exception as e:
-            raise ChatError(str(e), user_message="Failed to process your message.") from e
+            raise ChatError(
+                str(e), user_message="Failed to process your message.") from e
 
         hits = self._vectordb.search(
             query_vector,
@@ -80,7 +81,8 @@ class ChatService:
             context_parts.append(
                 f"=== FILE: {name} (score: {score:.3f}) ===\nLink: {link}\n{content}\n=== END ==="
             )
-        context = "\n\n".join(context_parts) if context_parts else "(No relevant documents found.)"
+        context = "\n\n".join(
+            context_parts) if context_parts else "(No relevant documents found.)"
 
         system_prompt = f"""You are a knowledgeable assistant that answers questions about documents from a Google Drive folder.
 
@@ -97,7 +99,8 @@ Here are the most relevant document excerpts for the user's question:
             role = (m.get("role") or "user").strip().lower()
             if role not in ("user", "assistant"):
                 role = "user"
-            normalized.append({"role": role, "content": (m.get("content") or "")})
+            normalized.append(
+                {"role": role, "content": (m.get("content") or "")})
         chat_messages = [*normalized, {"role": "user", "content": message}]
 
         return system_prompt, chat_messages
