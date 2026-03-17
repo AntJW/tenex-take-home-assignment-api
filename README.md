@@ -2,6 +2,9 @@
 
 API for loading Google Drive documents into a vector store and chatting over them with RAG (retrieval-augmented generation).
 
+
+![App architecture](docs/images/architecture.png)
+
 ## Prerequisites
 
 - Docker
