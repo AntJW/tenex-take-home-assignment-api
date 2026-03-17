@@ -25,7 +25,11 @@ API for loading Google Drive documents into a vector store and chatting over the
    pip install -r requirements.txt
    ```
 
-3. Copy `.env.example` to a `.env` file in root, and set `LLM_API_KEY` (Claude API Key).
+3. Copy `.env.example` to `.env`, and set your `LLM_API_KEY` (Claude API Key).
+
+   ```bash
+   cp .env.example .env
+   ```
 
 4. Run the server:
 
