@@ -11,6 +11,7 @@ from utils import (
     chunk_text,
     fetch_drive_file,
     fetch_drive_files,
+    get_drive_item_name,
     parse_drive_url,
 )
 
@@ -23,7 +24,9 @@ class EmbeddingsClientProtocol(Protocol):
 class VectorDBClientProtocol(Protocol):
     def ensure_collection(self) -> None: ...
     def delete_by_drive_url(self, google_id: str, drive_url: str) -> None: ...
-    def delete_by_google_id_and_file_id(self, google_id: str, file_id: str) -> None: ...
+    def delete_by_google_id_and_file_id(
+        self, google_id: str, file_id: str) -> None: ...
+
     def upsert(self, points: list[dict[str, Any]]) -> None: ...
 
 
@@ -75,7 +78,8 @@ class DriveService:
         self._vectordb.delete_by_drive_url(google_id, drive_url)
         for file in files:
             if file.get("id"):
-                self._vectordb.delete_by_google_id_and_file_id(google_id, file["id"])
+                self._vectordb.delete_by_google_id_and_file_id(
+                    google_id, file["id"])
 
         all_chunks: list[dict[str, Any]] = []
         for file in files:
@@ -93,17 +97,24 @@ class DriveService:
                     "fileId": file.get("id"),
                 })
 
+        folder_name: str | None = (
+            get_drive_item_name(
+                resource_id, access_token) if url_type == "folder" else None
+        )
         if not all_chunks:
             return {
                 "folderId": resource_id,
+                "folderName": folder_name,
                 "files": [{"name": f.get("name", ""), "mimeType": f.get("mimeType", "")} for f in files],
                 "chunksIndexed": 0,
             }
         try:
-            vectors = self._embeddings.embed_batch([c["text"] for c in all_chunks])
+            vectors = self._embeddings.embed_batch(
+                [c["text"] for c in all_chunks])
         except Exception as e:
             logging.exception("Embedding error: %s", e)
-            raise DriveLoadError(str(e), user_message="Failed to process documents.") from e
+            raise DriveLoadError(
+                str(e), user_message="Failed to process documents.") from e
 
         points = [
             {
@@ -122,10 +133,11 @@ class DriveService:
         batch_size = self._config.drive_load_batch_size
         try:
             for i in range(0, len(points), batch_size):
-                self._vectordb.upsert(points[i : i + batch_size])
+                self._vectordb.upsert(points[i: i + batch_size])
         except Exception as e:
             logging.exception("Vector DB upsert error: %s", e)
-            raise DriveLoadError(str(e), user_message="Failed to save documents.") from e
+            raise DriveLoadError(
+                str(e), user_message="Failed to save documents.") from e
 
         logging.info(
             "Indexed %s chunks from %s files for user %s",
@@ -135,6 +147,7 @@ class DriveService:
         )
         return {
             "folderId": resource_id,
+            "folderName": folder_name,
             "files": [{"name": f.get("name", ""), "mimeType": f.get("mimeType", "")} for f in files],
             "chunksIndexed": len(all_chunks),
         }

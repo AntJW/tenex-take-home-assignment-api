@@ -71,6 +71,20 @@ def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 200) -> list[st
     return chunks
 
 
+def get_drive_item_name(resource_id: str, access_token: str) -> str | None:
+    """
+    Fetch the name of a Drive file or folder by ID. Returns None on error or missing.
+    """
+    try:
+        creds = Credentials(token=access_token)
+        drive = build("drive", "v3", credentials=creds)
+        meta = drive.files().get(fileId=resource_id, fields="name").execute()
+        return meta.get("name") or None
+    except Exception as e:
+        logging.exception("Failed to get Drive item name for %s: %s", resource_id, e)
+        return None
+
+
 def fetch_drive_files(folder_id: str, access_token: str) -> list[dict]:
     """
     Fetch metadata and text content of all supported files in a Google Drive folder.
