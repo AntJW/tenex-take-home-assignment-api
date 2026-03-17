@@ -1,10 +1,12 @@
-from qdrant_client import models, QdrantClient
-from qdrant_client.conversions.common_types import Filter
-from clients.embeddings_client import EmbeddingsAPIClient
 import os
-from pydantic import BaseModel
-from typing import Literal, Optional, Any
 import uuid
+from typing import Any, Literal
+
+from pydantic import BaseModel
+from qdrant_client import QdrantClient, models
+from qdrant_client.conversions.common_types import Filter
+
+from clients.embeddings_client import EmbeddingsAPIClient
 
 DEFAULT_VECTOR_DB_URL = "http://127.0.0.1:6333"
 DEFAULT_COLLECTION = "drive_documents"
@@ -15,9 +17,9 @@ class Document(BaseModel):
     # content is the data to be vectorized
     content: str
     type: Literal["conversation_transcript"]
-    # userId is used for multitenancy
-    userId: str
-    customerId: Optional[str] = None
+    # userId/customerId are API contract (camelCase)
+    userId: str  # noqa: N815
+    customerId: str | None = None  # noqa: N815
 
 
 class VectorDBClient:
@@ -81,6 +83,9 @@ class VectorDBClient:
         drive_url: str | None = None,
     ) -> list[dict[str, Any]]:
         """Search by vector filtered by googleId and optionally driveUrl. Returns list of { id, score, payload }."""
+        if not google_id or not (vector and len(vector) > 0):
+            return []
+        limit = max(1, min(limit, 100))
         must = [models.FieldCondition(
             key="googleId", match=models.MatchValue(value=google_id))]
         if drive_url:

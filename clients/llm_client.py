@@ -1,6 +1,10 @@
+"""
+LLM client for chat and structured outputs. Validates config at init.
+"""
 import json
 import os
-from typing import Any, Generator
+from collections.abc import Generator
+from typing import Any
 
 import anthropic
 
@@ -13,7 +17,7 @@ class LLMClient:
         if not self._api_key:
             raise ValueError("LLM_API_KEY is not configured")
         self._client = anthropic.Anthropic(api_key=self._api_key)
-        self._model = model or os.getenv("LLM_MODEL")
+        self._model = model or os.getenv("LLM_MODEL") or DEFAULT_MODEL
 
     def stream_chat(
         self,
@@ -29,8 +33,7 @@ class LLMClient:
             system=system_prompt,
             messages=messages,
         ) as stream:
-            for text in stream.text_stream:
-                yield text
+            yield from stream.text_stream
 
     def chat_structured(
         self,

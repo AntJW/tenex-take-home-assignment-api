@@ -1,8 +1,8 @@
 """
 Shared utilities for the API: Google Drive handling and text chunking.
 """
-import re
 import logging
+import re
 
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
